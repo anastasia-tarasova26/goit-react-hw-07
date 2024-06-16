@@ -1,29 +1,63 @@
-import { createSlice, nanoid, createSelector } from "@reduxjs/toolkit";
+import { createSlice } from "@reduxjs/toolkit";
 import { CONSTANTS } from "./constants.js";
-import { persistReducer } from "redux-persist";
-import storage from "redux-persist/lib/storage";
-const ontactsSlice = createSlice({
-  name: "contacts",
-  initialState: { items: CONSTANTS.CONTACTS_INIT },
-  reducers: {
-    addContact: (state, action) => {
-      state.items.push(action.payload);
-    },
+import { fetchContacts, addContact, deleteContact } from "./contactsOps.js";
+import { createSelector } from "@reduxjs/toolkit";
+import { filter } from "./filtersSlice.js";
 
-    deleteContact(state, action) {
-      state.items.splice(state.items.indexOf(action.payload), 1);
-    },
-  },
-});
-const persistContactsConfig = {
-  key: "root",
-  whitelist: ["items"],
-  storage,
+const handlePending = (state) => {
+  state.isLoading = true;
 };
 
-export const { addContact, deleteContact } = ontactsSlice.actions;
+const handleRejected = (state, action) => {
+  state.isLoadinf = false;
+  state.error = action.payload;
+};
+
+const ontactsSlice = createSlice({
+  name: "contacts",
+  initialState: {
+    items: [],
+    isLoading: false,
+    error: null,
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchContacts.pending, handlePending)
+      .addCase(fetchContacts.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.error = null;
+        state.items = action.payload;
+      })
+      .addCase(fetchContacts.rejected, handleRejected)
+      .addCase(addContact.pending, handlePending)
+      .addCase(addContact.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.error = null;
+        state.items = [...state.items, action.payload];
+      })
+      .addCase(addContact.rejected, handleRejected)
+      .addCase(deleteContact.pending, handlePending)
+      .addCase(deleteContact.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.error = null;
+        state.items = state.items.filter(
+          (item) => item.id !== action.payload.id
+        );
+      })
+      .addCase(deleteContact.rejected, handleRejected);
+  },
+});
+
+const selectContacts = (state) => state.contacts.items;
+const selectFilters = (state) => state.filters.name;
+export const loading = (state) => state.isLoading;
 export const contactReducer = ontactsSlice.reducer;
-export const persistedContactsReducer = persistReducer(
-  persistContactsConfig,
-  contactReducer
+
+export const selectFilteredContacts = createSelector(
+  [selectContacts, selectFilters],
+  (contacts, filter) => {
+    return contacts.filter((contact) =>
+      contact.name.toLowerCase().includes(filter.toLowerCase())
+    );
+  }
 );
